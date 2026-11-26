@@ -19,7 +19,7 @@ find "$TMP" -name '*.bak' -delete
 deploy() { # dir pkgpath
   echo "→ addpkg $2"
   gnokey maketx addpkg -pkgpath "$2" -pkgdir "$1" \
-    -gas-fee 10000000ugnot -gas-wanted 60000000 -max-deposit 100000000ugnot \
+    -gas-fee 1000000ugnot -gas-wanted 60000000 -max-deposit 100000000ugnot \
     -broadcast -chainid "$CHAIN" -remote "$REMOTE" "$KEY"
 }
 deploy "$TMP/p/aegis_core"      "gno.land/p/$ADDR/aegis_core"
