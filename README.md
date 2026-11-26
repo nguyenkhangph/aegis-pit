@@ -149,7 +149,7 @@ The agent never sees a private key: reads go through public RPC queries (`vm/qev
 cd web && npm i && npm run dev
 ```
 
-Vercel builds from the repo root (`vercel.json`: install/build in `web/`, output `web/dist`). Optional env vars: `VITE_REALM_PATH`, `VITE_REPO_URL`, `VITE_GNO_RPC`, `VITE_GNOWEB`.
+On Vercel, set **Root Directory = `web`** (preset Vite). Optional env vars: `VITE_REALM_PATH`, `VITE_REPO_URL`, `VITE_GNO_RPC`, `VITE_GNOWEB`.
 
 The web demo runs the **same rules** mirrored in TypeScript (`web/src/engine.ts`, parity-tested against the Gno tests), so judges can play the full 4-scene demo with no wallet. The **Live on Onyx** tab reads the deployed realm with `vm/qrender`.
 
