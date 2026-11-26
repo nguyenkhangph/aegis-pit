@@ -38,15 +38,15 @@ func TestRankedMatchFullFlow(cur realm, t *testing.T) {
 	mid := CreateMatch(cross(cur), fa, true)
 
 	// same owner cannot join own match
+	testing.SetRealm(testing.NewUserRealm(alice))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 1000}})
 	uassert.AbortsContains(t, cur, "cannot fight yourself", func() {
-		testing.SetRealm(testing.NewUserRealm(alice))
-		testing.SetOriginSend(chain.Coins{{"ugnot", 1000}})
 		JoinMatch(cross(cur), mid, fa)
 	})
 	// wrong bond
+	testing.SetRealm(testing.NewUserRealm(bob))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 999}})
 	uassert.AbortsContains(t, cur, "bond must equal", func() {
-		testing.SetRealm(testing.NewUserRealm(bob))
-		testing.SetOriginSend(chain.Coins{{"ugnot", 999}})
 		JoinMatch(cross(cur), mid, fb)
 	})
 	testing.SetRealm(testing.NewUserRealm(bob))
@@ -63,9 +63,9 @@ func TestRankedMatchFullFlow(cur realm, t *testing.T) {
 	PlaceBet(cross(cur), mid, 2)
 
 	// anti match-fixing: alice cannot bet against her own fighter
+	testing.SetRealm(testing.NewUserRealm(alice))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 10}})
 	uassert.AbortsContains(t, cur, "against their own fighter", func() {
-		testing.SetRealm(testing.NewUserRealm(alice))
-		testing.SetOriginSend(chain.Coins{{"ugnot", 10}})
 		PlaceBet(cross(cur), mid, 2)
 	})
 
@@ -75,30 +75,30 @@ func TestRankedMatchFullFlow(cur realm, t *testing.T) {
 	CommitMove(cross(cur), mid, core.CommitHash("SFG", "alice-salt-1"))
 	testing.SetRealm(testing.NewUserRealm(bob))
 	CommitMove(cross(cur), mid, core.CommitHash("FGS", "bob-salt-123"))
+	testing.SetRealm(testing.NewUserRealm(bob))
 	uassert.AbortsContains(t, cur, "already committed", func() {
-		testing.SetRealm(testing.NewUserRealm(bob))
 		CommitMove(cross(cur), mid, core.CommitHash("SSS", "bob-salt-123"))
 	})
 
 	// reveal before the lock is refused (nobody sees moves while bets are open)
+	testing.SetRealm(testing.NewUserRealm(alice))
 	uassert.AbortsContains(t, cur, "reveal opens after block", func() {
-		testing.SetRealm(testing.NewUserRealm(alice))
 		Reveal(cross(cur), mid, "SFG", "alice-salt-1")
 	})
 
 	testing.SkipHeights(CommitWindow + 1)
 
 	// betting is locked at the commit deadline
+	testing.SetRealm(testing.NewUserRealm(carol))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 100}})
 	uassert.AbortsContains(t, cur, "betting is locked", func() {
-		testing.SetRealm(testing.NewUserRealm(carol))
-		testing.SetOriginSend(chain.Coins{{"ugnot", 100}})
 		PlaceBet(cross(cur), mid, 1)
 	})
 	testing.SetOriginSend(chain.Coins{})
 
 	// wrong salt
+	testing.SetRealm(testing.NewUserRealm(alice))
 	uassert.AbortsContains(t, cur, "does not match", func() {
-		testing.SetRealm(testing.NewUserRealm(alice))
 		Reveal(cross(cur), mid, "SFG", "wrong-salt-x")
 	})
 	testing.SetRealm(testing.NewUserRealm(alice))
@@ -132,8 +132,8 @@ func TestRankedMatchFullFlow(cur realm, t *testing.T) {
 	got := Claim(cross(cur))
 	uassert.Equal(t, int64(950), got)
 	uassert.Equal(t, int64(0), CreditOf(carol))
+	testing.SetRealm(testing.NewUserRealm(carol))
 	uassert.AbortsContains(t, cur, "nothing to claim", func() {
-		testing.SetRealm(testing.NewUserRealm(carol))
 		Claim(cross(cur))
 	})
 
@@ -164,8 +164,8 @@ func TestSlashNoReveal(cur realm, t *testing.T) {
 	Reveal(cross(cur), mid, "SSS", "salt-alice")
 	// bob sees he would lose and refuses to reveal
 
+	testing.SetRealm(testing.NewUserRealm(dave))
 	uassert.AbortsContains(t, cur, "nothing to slash yet", func() {
-		testing.SetRealm(testing.NewUserRealm(dave))
 		SlashNoReveal(cross(cur), mid)
 	})
 	testing.SkipHeights(RevealWindow + 1)
@@ -187,9 +187,9 @@ func TestFriendlyMatchNoBets(cur realm, t *testing.T) {
 	testing.SetRealm(testing.NewUserRealm(bob))
 	testing.SetOriginSend(chain.Coins{{"ugnot", 1000}})
 	JoinMatch(cross(cur), mid, fb)
+	testing.SetRealm(testing.NewUserRealm(carol))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 10}})
 	uassert.AbortsContains(t, cur, "no betting", func() {
-		testing.SetRealm(testing.NewUserRealm(carol))
-		testing.SetOriginSend(chain.Coins{{"ugnot", 10}})
 		PlaceBet(cross(cur), mid, 1)
 	})
 }
@@ -203,23 +203,23 @@ func TestBoxPolicyAndExit(cur realm, t *testing.T) {
 	uassert.Equal(t, int64(100), BoxBalance(box))
 
 	// prompt-injected agent tries to send to a hacker: hard revert
+	testing.SetRealm(testing.NewUserRealm(agentK))
 	uassert.AbortsContains(t, cur, "target not in allowlist", func() {
-		testing.SetRealm(testing.NewUserRealm(agentK))
 		BoxSpend(cross(cur), box, hacker, "Tip", 10)
 	})
 	// over cap
+	testing.SetRealm(testing.NewUserRealm(agentK))
 	uassert.AbortsContains(t, cur, "exceeds per-tx cap", func() {
-		testing.SetRealm(testing.NewUserRealm(agentK))
 		BoxSpend(cross(cur), box, tavern, "Tip", 31)
 	})
 	// wrong fn
+	testing.SetRealm(testing.NewUserRealm(agentK))
 	uassert.AbortsContains(t, cur, "function not in allowlist", func() {
-		testing.SetRealm(testing.NewUserRealm(agentK))
 		BoxSpend(cross(cur), box, tavern, "Drain", 1)
 	})
 	// stranger
+	testing.SetRealm(testing.NewUserRealm(hacker))
 	uassert.AbortsContains(t, cur, "not the box owner", func() {
-		testing.SetRealm(testing.NewUserRealm(hacker))
 		BoxSpend(cross(cur), box, tavern, "Tip", 1)
 	})
 
@@ -236,16 +236,16 @@ func TestBoxPolicyAndExit(cur realm, t *testing.T) {
 	uassert.Equal(t, int64(80), BoxBalance(box))
 
 	// agent cannot exit; owner can
+	testing.SetRealm(testing.NewUserRealm(agentK))
 	uassert.AbortsContains(t, cur, "only the box owner", func() {
-		testing.SetRealm(testing.NewUserRealm(agentK))
 		EmergencyWithdraw(cross(cur), box)
 	})
 	testing.SetRealm(testing.NewUserRealm(alice))
 	got := EmergencyWithdraw(cross(cur), box)
 	uassert.Equal(t, int64(80), got)
 	uassert.Equal(t, int64(0), BoxBalance(box))
+	testing.SetRealm(testing.NewUserRealm(agentK))
 	uassert.AbortsContains(t, cur, "box closed", func() {
-		testing.SetRealm(testing.NewUserRealm(agentK))
 		BoxSpend(cross(cur), box, tavern, "Tip", 1)
 	})
 }
@@ -267,8 +267,8 @@ func TestBoxBet(cur realm, t *testing.T) {
 	testing.SetRealm(testing.NewUserRealm(agentK))
 	BoxBet(cross(cur), box, mid, 1, 20)
 	uassert.Equal(t, int64(80), BoxBalance(box))
+	testing.SetRealm(testing.NewUserRealm(agentK))
 	uassert.AbortsContains(t, cur, "exceeds per-tx cap", func() {
-		testing.SetRealm(testing.NewUserRealm(agentK))
 		BoxBet(cross(cur), box, mid, 1, 21)
 	})
 }
