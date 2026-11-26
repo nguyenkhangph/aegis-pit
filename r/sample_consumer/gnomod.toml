@@ -1,0 +1,2 @@
+module = "gno.land/r/aegispit/sample_consumer"
+gno = "0.9"
