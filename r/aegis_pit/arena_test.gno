@@ -21,16 +21,10 @@ var (
 	pkgAddr = chain.PackageAddress("gno.land/r/aegispit/aegis_pit")
 )
 
-func as(a address) { testing.SetRealm(testing.NewUserRealm(a)) }
-
-func pay(amt int64) { testing.SetOriginSend(chain.Coins{{"ugnot", amt}}) }
-
-func nopay() { testing.SetOriginSend(chain.Coins{}) }
-
 func setupFighters(cur realm) (int, int) {
-	as(alice)
+	testing.SetRealm(testing.NewUserRealm(alice))
 	a := RegisterFighter(cross(cur), "Ironclad", "gno.land/r/aegispit/ironclad", 1000)
-	as(bob)
+	testing.SetRealm(testing.NewUserRealm(bob))
 	b := RegisterFighter(cross(cur), "Viper", "gno.land/r/aegispit/viper", 1000)
 	return a, b
 }
@@ -39,56 +33,56 @@ func TestRankedMatchFullFlow(cur realm, t *testing.T) {
 	testing.IssueCoins(pkgAddr, chain.Coins{{"ugnot", 1_000_000}})
 	fa, fb := setupFighters(cur)
 
-	as(alice)
-	pay(1000)
+	testing.SetRealm(testing.NewUserRealm(alice))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 1000}})
 	mid := CreateMatch(cross(cur), fa, true)
 
 	// same owner cannot join own match
 	uassert.AbortsContains(t, cur, "cannot fight yourself", func() {
-		as(alice)
-		pay(1000)
+		testing.SetRealm(testing.NewUserRealm(alice))
+		testing.SetOriginSend(chain.Coins{{"ugnot", 1000}})
 		JoinMatch(cross(cur), mid, fa)
 	})
 	// wrong bond
 	uassert.AbortsContains(t, cur, "bond must equal", func() {
-		as(bob)
-		pay(999)
+		testing.SetRealm(testing.NewUserRealm(bob))
+		testing.SetOriginSend(chain.Coins{{"ugnot", 999}})
 		JoinMatch(cross(cur), mid, fb)
 	})
-	as(bob)
-	pay(1000)
+	testing.SetRealm(testing.NewUserRealm(bob))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 1000}})
 	JoinMatch(cross(cur), mid, fb)
 	uassert.Equal(t, StatusLive, MatchStatus(mid))
 
 	// bets
-	as(carol)
-	pay(600)
+	testing.SetRealm(testing.NewUserRealm(carol))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 600}})
 	PlaceBet(cross(cur), mid, 1)
-	as(dave)
-	pay(400)
+	testing.SetRealm(testing.NewUserRealm(dave))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 400}})
 	PlaceBet(cross(cur), mid, 2)
 
 	// anti match-fixing: alice cannot bet against her own fighter
 	uassert.AbortsContains(t, cur, "against their own fighter", func() {
-		as(alice)
-		pay(10)
+		testing.SetRealm(testing.NewUserRealm(alice))
+		testing.SetOriginSend(chain.Coins{{"ugnot", 10}})
 		PlaceBet(cross(cur), mid, 2)
 	})
 
 	// commits
-	nopay()
-	as(alice)
+	testing.SetOriginSend(chain.Coins{})
+	testing.SetRealm(testing.NewUserRealm(alice))
 	CommitMove(cross(cur), mid, core.CommitHash("SFG", "alice-salt-1"))
-	as(bob)
+	testing.SetRealm(testing.NewUserRealm(bob))
 	CommitMove(cross(cur), mid, core.CommitHash("FGS", "bob-salt-123"))
 	uassert.AbortsContains(t, cur, "already committed", func() {
-		as(bob)
+		testing.SetRealm(testing.NewUserRealm(bob))
 		CommitMove(cross(cur), mid, core.CommitHash("SSS", "bob-salt-123"))
 	})
 
 	// reveal before the lock is refused (nobody sees moves while bets are open)
 	uassert.AbortsContains(t, cur, "reveal opens after block", func() {
-		as(alice)
+		testing.SetRealm(testing.NewUserRealm(alice))
 		Reveal(cross(cur), mid, "SFG", "alice-salt-1")
 	})
 
@@ -96,20 +90,20 @@ func TestRankedMatchFullFlow(cur realm, t *testing.T) {
 
 	// betting is locked at the commit deadline
 	uassert.AbortsContains(t, cur, "betting is locked", func() {
-		as(carol)
-		pay(100)
+		testing.SetRealm(testing.NewUserRealm(carol))
+		testing.SetOriginSend(chain.Coins{{"ugnot", 100}})
 		PlaceBet(cross(cur), mid, 1)
 	})
-	nopay()
+	testing.SetOriginSend(chain.Coins{})
 
 	// wrong salt
 	uassert.AbortsContains(t, cur, "does not match", func() {
-		as(alice)
+		testing.SetRealm(testing.NewUserRealm(alice))
 		Reveal(cross(cur), mid, "SFG", "wrong-salt-x")
 	})
-	as(alice)
+	testing.SetRealm(testing.NewUserRealm(alice))
 	Reveal(cross(cur), mid, "SFG", "alice-salt-1")
-	as(bob)
+	testing.SetRealm(testing.NewUserRealm(bob))
 	Reveal(cross(cur), mid, "FGS", "bob-salt-123")
 
 	uassert.Equal(t, StatusResolved, MatchStatus(mid))
@@ -127,19 +121,19 @@ func TestRankedMatchFullFlow(cur realm, t *testing.T) {
 	uassert.True(t, TrustScore(alice) > TrustScore(bob))
 
 	// backer token transfer settles dividends first
-	as(alice)
+	testing.SetRealm(testing.NewUserRealm(alice))
 	TransferBacker(cross(cur), fa, carol, 500)
 	uassert.Equal(t, int64(1030), CreditOf(alice))
 	uassert.Equal(t, int64(500), BackerBalance(fa, carol))
 	uassert.Equal(t, int64(0), BackerPending(fa, carol))
 
 	// claim pays out
-	as(carol)
+	testing.SetRealm(testing.NewUserRealm(carol))
 	got := Claim(cross(cur))
 	uassert.Equal(t, int64(950), got)
 	uassert.Equal(t, int64(0), CreditOf(carol))
 	uassert.AbortsContains(t, cur, "nothing to claim", func() {
-		as(carol)
+		testing.SetRealm(testing.NewUserRealm(carol))
 		Claim(cross(cur))
 	})
 
@@ -150,33 +144,33 @@ func TestRankedMatchFullFlow(cur realm, t *testing.T) {
 func TestSlashNoReveal(cur realm, t *testing.T) {
 	testing.IssueCoins(pkgAddr, chain.Coins{{"ugnot", 1_000_000}})
 	fa, fb := setupFighters(cur)
-	as(alice)
-	pay(2000)
+	testing.SetRealm(testing.NewUserRealm(alice))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 2000}})
 	mid := CreateMatch(cross(cur), fa, true)
-	as(bob)
-	pay(2000)
+	testing.SetRealm(testing.NewUserRealm(bob))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 2000}})
 	JoinMatch(cross(cur), mid, fb)
-	as(carol)
-	pay(300)
+	testing.SetRealm(testing.NewUserRealm(carol))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 300}})
 	PlaceBet(cross(cur), mid, 2)
-	nopay()
+	testing.SetOriginSend(chain.Coins{})
 
-	as(alice)
+	testing.SetRealm(testing.NewUserRealm(alice))
 	CommitMove(cross(cur), mid, core.CommitHash("SSS", "salt-alice"))
-	as(bob)
+	testing.SetRealm(testing.NewUserRealm(bob))
 	CommitMove(cross(cur), mid, core.CommitHash("GGG", "salt-bob-1"))
 	testing.SkipHeights(CommitWindow + 1)
-	as(alice)
+	testing.SetRealm(testing.NewUserRealm(alice))
 	Reveal(cross(cur), mid, "SSS", "salt-alice")
 	// bob sees he would lose and refuses to reveal
 
 	uassert.AbortsContains(t, cur, "nothing to slash yet", func() {
-		as(dave)
+		testing.SetRealm(testing.NewUserRealm(dave))
 		SlashNoReveal(cross(cur), mid)
 	})
 	testing.SkipHeights(RevealWindow + 1)
 	before := CreditOf(alice)
-	as(dave)
+	testing.SetRealm(testing.NewUserRealm(dave))
 	SlashNoReveal(cross(cur), mid)
 
 	uassert.Equal(t, StatusForfeit, MatchStatus(mid))
@@ -187,71 +181,71 @@ func TestSlashNoReveal(cur realm, t *testing.T) {
 
 func TestFriendlyMatchNoBets(cur realm, t *testing.T) {
 	fa, fb := setupFighters(cur)
-	as(alice)
-	pay(1000)
+	testing.SetRealm(testing.NewUserRealm(alice))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 1000}})
 	mid := CreateMatch(cross(cur), fa, false)
-	as(bob)
-	pay(1000)
+	testing.SetRealm(testing.NewUserRealm(bob))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 1000}})
 	JoinMatch(cross(cur), mid, fb)
 	uassert.AbortsContains(t, cur, "no betting", func() {
-		as(carol)
-		pay(10)
+		testing.SetRealm(testing.NewUserRealm(carol))
+		testing.SetOriginSend(chain.Coins{{"ugnot", 10}})
 		PlaceBet(cross(cur), mid, 1)
 	})
 }
 
 func TestBoxPolicyAndExit(cur realm, t *testing.T) {
 	testing.IssueCoins(pkgAddr, chain.Coins{{"ugnot", 1_000_000}})
-	as(alice)
-	pay(100)
+	testing.SetRealm(testing.NewUserRealm(alice))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 100}})
 	box := CreateBox(cross(cur), agentK, string(tavern), "Tip", 30, 0)
-	nopay()
+	testing.SetOriginSend(chain.Coins{})
 	uassert.Equal(t, int64(100), BoxBalance(box))
 
 	// prompt-injected agent tries to send to a hacker: hard revert
 	uassert.AbortsContains(t, cur, "target not in allowlist", func() {
-		as(agentK)
+		testing.SetRealm(testing.NewUserRealm(agentK))
 		BoxSpend(cross(cur), box, hacker, "Tip", 10)
 	})
 	// over cap
 	uassert.AbortsContains(t, cur, "exceeds per-tx cap", func() {
-		as(agentK)
+		testing.SetRealm(testing.NewUserRealm(agentK))
 		BoxSpend(cross(cur), box, tavern, "Tip", 31)
 	})
 	// wrong fn
 	uassert.AbortsContains(t, cur, "function not in allowlist", func() {
-		as(agentK)
+		testing.SetRealm(testing.NewUserRealm(agentK))
 		BoxSpend(cross(cur), box, tavern, "Drain", 1)
 	})
 	// stranger
 	uassert.AbortsContains(t, cur, "not the box owner", func() {
-		as(hacker)
+		testing.SetRealm(testing.NewUserRealm(hacker))
 		BoxSpend(cross(cur), box, tavern, "Tip", 1)
 	})
 
 	// soft variant logs to the lab and moves nothing
-	as(agentK)
+	testing.SetRealm(testing.NewUserRealm(agentK))
 	ok := GuardedSpend(cross(cur), box, hacker, "Tip", 10)
 	uassert.False(t, ok)
 	uassert.Equal(t, int64(100), BoxBalance(box))
 	uassert.True(t, strings.Contains(Render("lab"), "target not in allowlist"))
 
 	// legit spend
-	as(agentK)
+	testing.SetRealm(testing.NewUserRealm(agentK))
 	BoxSpend(cross(cur), box, tavern, "Tip", 20)
 	uassert.Equal(t, int64(80), BoxBalance(box))
 
 	// agent cannot exit; owner can
 	uassert.AbortsContains(t, cur, "only the box owner", func() {
-		as(agentK)
+		testing.SetRealm(testing.NewUserRealm(agentK))
 		EmergencyWithdraw(cross(cur), box)
 	})
-	as(alice)
+	testing.SetRealm(testing.NewUserRealm(alice))
 	got := EmergencyWithdraw(cross(cur), box)
 	uassert.Equal(t, int64(80), got)
 	uassert.Equal(t, int64(0), BoxBalance(box))
 	uassert.AbortsContains(t, cur, "box closed", func() {
-		as(agentK)
+		testing.SetRealm(testing.NewUserRealm(agentK))
 		BoxSpend(cross(cur), box, tavern, "Tip", 1)
 	})
 }
@@ -259,22 +253,22 @@ func TestBoxPolicyAndExit(cur realm, t *testing.T) {
 func TestBoxBet(cur realm, t *testing.T) {
 	testing.IssueCoins(pkgAddr, chain.Coins{{"ugnot", 1_000_000}})
 	fa, fb := setupFighters(cur)
-	as(alice)
-	pay(1000)
+	testing.SetRealm(testing.NewUserRealm(alice))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 1000}})
 	mid := CreateMatch(cross(cur), fa, true)
-	as(bob)
-	pay(1000)
+	testing.SetRealm(testing.NewUserRealm(bob))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 1000}})
 	JoinMatch(cross(cur), mid, fb)
 
-	as(carol)
-	pay(100)
+	testing.SetRealm(testing.NewUserRealm(carol))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 100}})
 	box := CreateBox(cross(cur), agentK, string(pkgAddr), "PlaceBet", 20, 0)
-	nopay()
-	as(agentK)
+	testing.SetOriginSend(chain.Coins{})
+	testing.SetRealm(testing.NewUserRealm(agentK))
 	BoxBet(cross(cur), box, mid, 1, 20)
 	uassert.Equal(t, int64(80), BoxBalance(box))
 	uassert.AbortsContains(t, cur, "exceeds per-tx cap", func() {
-		as(agentK)
+		testing.SetRealm(testing.NewUserRealm(agentK))
 		BoxBet(cross(cur), box, mid, 1, 21)
 	})
 }
