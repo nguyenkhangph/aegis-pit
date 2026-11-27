@@ -2,7 +2,7 @@ import { useState } from "react";
 
 const RPC = import.meta.env.VITE_GNO_RPC ?? "https://rpc.onyx.testnets.gno.land";
 const GNOWEB = import.meta.env.VITE_GNOWEB ?? "https://onyx.testnets.gno.land";
-const DEFAULT_REALM = import.meta.env.VITE_REALM_PATH ?? "gno.land/r/aegispit/aegis_pit";
+const DEFAULT_REALM = import.meta.env.VITE_REALM_PATH ?? "gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2";
 
 const toHex = (s: string) => [...new TextEncoder().encode(s)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
