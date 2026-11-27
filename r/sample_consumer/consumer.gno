@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	core "gno.land/p/aegispit/aegis_core"
-	pit "gno.land/r/aegispit/aegis_pit"
+	pit "gno.land/r/aegispit/aegis_pit/v2"
 )
 
 // MinTrust is the reputation required to enter the VIP table.
@@ -56,7 +56,7 @@ func EnterVIP(cur realm) {
 
 func Render(path string) string {
 	out := "# 🍺 Sample Consumer — The VIP Table\n\n"
-	out += "This realm imports `gno.land/p/aegispit/aegis_core` and reads `TrustScore` from `gno.land/r/aegispit/aegis_pit`.\n\n"
+	out += "This realm imports `gno.land/p/aegispit/aegis_core` and reads `TrustScore` from `gno.land/r/aegispit/aegis_pit/v2`.\n\n"
 	out += "- VIP entry needs trust ≥ " + strconv.FormatInt(MinTrust, 10) + "\n"
 	out += "- VIP guests: " + strconv.Itoa(len(vip)) + "\n"
 	if lastDuel != "" {

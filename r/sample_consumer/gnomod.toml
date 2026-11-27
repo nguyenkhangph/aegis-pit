@@ -1,2 +1,2 @@
-module = "gno.land/r/aegispit/sample_consumer"
+module = "gno.land/r/aegispit/sample_consumer/v2"
 gno = "0.9"
