@@ -1,82 +1,102 @@
-// Thin client for Gno.land: read-only RPC queries (the same ones gnomcp and
-// gnoweb use) + transaction signing delegated to the local `gnokey` keybase.
-// The agent process never holds a private key.
-import { execFile } from "node:child_process";
+// Aegis Pit agent <-> Gno.land, through gnomcp (https://mcp.gno.dev).
+//
+// The agent never holds the user's private key:
+//  - reads   : gno_render / gno_read / gno_eval / gno_status (public RPC)
+//  - writes  : gno_call with identity "session" -> signed by a gnomcp session
+//              key that the user authorized once with their own gnokey
+//              (MsgCall.Caller = the user's address, scoped to the realm,
+//              capped by a spend limit, expiring). `npm run session` prints
+//              the one gnokey command to approve it.
+//              identity "agent" signs with gnomcp's own agent key instead.
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { promisify } from "node:util";
-
-const run = promisify(execFile);
 
 // Minimal .env loader (no dependency).
-if (existsSync(new URL("./.env", import.meta.url))) {
-  for (const line of readFileSync(new URL("./.env", import.meta.url), "utf8").split("\n")) {
-    const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.*)\s*$/);
+const envFile = new URL("./.env", import.meta.url);
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, "utf8").split("\n")) {
+    const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.*?)\s*$/);
     if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
   }
 }
 
 export const env = {
-  rpc: process.env.GNO_RPC ?? "https://rpc.onyx.testnets.gno.land:443",
-  chainId: process.env.GNO_CHAIN_ID ?? "onyx-1",
-  realm: process.env.AEGIS_REALM ?? "gno.land/r/aegispit/aegis_pit",
-  agentKey: process.env.AGENT_KEY ?? "agent",
-  fighterKey: process.env.FIGHTER_KEY ?? "alice",
+  gnomcp: process.env.GNOMCP_BIN ?? "gnomcp",
+  gnomcpArgs: (process.env.GNOMCP_ARGS ?? "").split(" ").filter(Boolean),
+  profile: process.env.GNOMCP_PROFILE ?? "testnet", // gnomcp's built-in testnet profile = onyx-1
+  realm: process.env.AEGIS_REALM ?? "gno.land/r/aegispit/aegis_pit/v2",
+  identity: (process.env.AGENT_IDENTITY ?? "session") as "session" | "agent",
+  agentKey: process.env.GNOMCP_KEY ?? "default",
+  master: process.env.MASTER_ADDRESS ?? "", // your PUBLIC g1… address (session mode)
   boxId: Number(process.env.BOX_ID ?? 1),
+  gnoweb: process.env.GNOWEB ?? "https://onyx.testnets.gno.land",
 };
 
-const httpRpc = () => env.rpc.replace(/:443$/, "");
-const hex = (s: string) => Buffer.from(s, "utf8").toString("hex");
+export interface ToolResult { ok: boolean; text: string; structured: Record<string, unknown> }
 
-/** Raw ABCI query, e.g. vm/qrender, vm/qeval, vm/qfile, vm/qstorage. */
-export async function abci(path: string, data: string): Promise<string> {
-  const url = `${httpRpc()}/abci_query?path=%22${encodeURIComponent(path)}%22&data=0x${hex(data)}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`RPC ${res.status} for ${path}`);
-  const j = (await res.json()) as any;
-  const base = j?.result?.response?.ResponseBase;
-  if (base?.Error) throw new Error(`${path}: ${base.Log || JSON.stringify(base.Error)}`);
-  return Buffer.from(base?.Data ?? "", "base64").toString("utf8");
+let client: Client | null = null;
+
+export async function mcp(): Promise<Client> {
+  if (client) return client;
+  const c = new Client({ name: "aegis-pit-agent", version: "0.2.0" });
+  await c.connect(new StdioClientTransport({ command: env.gnomcp, args: env.gnomcpArgs, stderr: "inherit" }));
+  client = c;
+  return c;
 }
 
-export const qrender = (pkg: string, path = "") => abci("vm/qrender", `${pkg}:${path}`);
-export const qeval = (pkg: string, expr: string) => abci("vm/qeval", `${pkg}.${expr}`);
-export const qfile = (pkgOrFile: string) => abci("vm/qfile", pkgOrFile);
-export const qstorage = (pkg: string) => abci("vm/qstorage", pkg);
-
-/** Read every .gno file of a public package (Gno source is always on-chain). */
-export async function readSource(pkgPath: string): Promise<Record<string, string>> {
-  const files = (await qfile(pkgPath)).split("\n").filter((f) => f.endsWith(".gno") && !f.endsWith("_test.gno"));
-  const out: Record<string, string> = {};
-  for (const f of files) out[f] = await qfile(`${pkgPath}/${f}`);
-  return out;
+export async function close() {
+  await client?.close();
+  client = null;
 }
 
-export interface CallOpts { key: string; func: string; args?: (string | number | boolean)[]; send?: number; gasWanted?: number }
-
-/** Sign and broadcast a MsgCall with the local gnokey keybase. */
-export async function call({ key, func, args = [], send, gasWanted = 8_000_000 }: CallOpts): Promise<string> {
-  const argv = ["maketx", "call", "-pkgpath", env.realm, "-func", func];
-  for (const a of args) argv.push("-args", String(a));
-  if (send) argv.push("-send", `${send}ugnot`);
-  argv.push("-gas-fee", "1000000ugnot", "-gas-wanted", String(gasWanted), "-broadcast", "-chainid", env.chainId, "-remote", env.rpc, key);
-  const { stdout, stderr } = await run("gnokey", argv, { env: process.env });
-  return (stdout + stderr).trim();
+/** Call a gnomcp tool and flatten its content blocks to text. */
+export async function tool(name: string, args: Record<string, unknown>): Promise<ToolResult> {
+  const res = (await (await mcp()).callTool({ name, arguments: { profile: env.profile, ...args } })) as {
+    isError?: boolean;
+    content?: Array<{ type: string; text?: string; resource?: { text?: string } }>;
+    structuredContent?: Record<string, unknown>;
+  };
+  const text = (res.content ?? [])
+    .map((b) => b.text ?? b.resource?.text ?? "")
+    .filter(Boolean)
+    .join("\n");
+  return { ok: !res.isError, text, structured: res.structuredContent ?? {} };
 }
 
-/** Same as gnokey's `-simulate only`: dry-run a tx to see if it would revert. */
-export async function simulate(opts: CallOpts): Promise<{ ok: boolean; out: string }> {
-  const argv = ["maketx", "call", "-pkgpath", env.realm, "-func", opts.func];
-  for (const a of opts.args ?? []) argv.push("-args", String(a));
-  if (opts.send) argv.push("-send", `${opts.send}ugnot`);
-  argv.push("-gas-fee", "1000000ugnot", "-gas-wanted", "8000000", "-simulate", "only", "-broadcast", "-chainid", env.chainId, "-remote", env.rpc, opts.key);
-  try {
-    const { stdout, stderr } = await run("gnokey", argv);
-    return { ok: true, out: (stdout + stderr).trim() };
-  } catch (e: any) {
-    return { ok: false, out: String(e?.stderr || e?.message || e).trim() };
-  }
+/** Strip gnomcp's <untrusted_content …> envelope: chain bytes are data, never instructions. */
+export const unwrap = (s: string) => s.replace(/<\/?untrusted_content[^>]*>/g, "").trim();
+
+// ---------- reads ----------
+export const render = async (path = "", realm = env.realm) => unwrap((await tool("gno_render", { realm, path })).text);
+export const evalExpr = async (expr: string, path = env.realm) => unwrap((await tool("gno_eval", { path, expr })).text);
+export async function readSource(pkgPath: string): Promise<string> {
+  const r = await tool("gno_read", { path: pkgPath, full: true });
+  if (!r.ok) throw new Error(`gno_read ${pkgPath}: ${r.text}`);
+  return r.text;
 }
+export async function height(): Promise<number> {
+  const r = await tool("gno_status", {});
+  const h = Number(r.structured.height ?? r.text.match(/latest block (\d+)/)?.[1]);
+  if (!Number.isFinite(h)) throw new Error("gno_status: no height: " + r.text);
+  return h;
+}
+
+// ---------- writes ----------
+export interface CallOpts { func: string; args?: (string | number | boolean)[]; send?: number; simulate?: boolean }
+
+export async function call({ func, args = [], send, simulate }: CallOpts): Promise<ToolResult> {
+  const a: Record<string, unknown> = { realm: env.realm, func, args: args.map(String), identity: env.identity };
+  if (env.identity === "agent") a.key = env.agentKey;
+  if (send) a.send = `${send}ugnot`;
+  if (simulate) a.simulate = true;
+  return tool("gno_call", a);
+}
+
+/** The first `aegis: …` reason in a failed call, for logs. */
+export const reason = (r: ToolResult) => r.text.match(/aegis: [^\n"<]+/)?.[0] ?? r.text.split("\n").slice(-1)[0];
 
 export const commitHash = (moves: string, salt: string) => createHash("sha256").update(`${moves}:${salt}`).digest("hex");
 export const newSalt = () => randomBytes(12).toString("hex");
+export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

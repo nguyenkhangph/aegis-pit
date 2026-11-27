@@ -1,69 +1,69 @@
-// AI fighter worker.
-//  1. ReadOpponentSource: pull the rival fighter's public Gno source from chain.
-//  2. Pick a counter-strategy (deterministic heuristic; swap in an LLM call if you like —
-//     the realm doesn't care how the moves were chosen, only that they were committed).
-//  3. RunMatchTurn: commit before the deadline, wait, reveal after it.
-// Signing goes through the local gnokey key `FIGHTER_KEY` (or a gnomcp session key).
-import { call, commitHash, env, newSalt, qeval, qrender, readSource } from "./gno.ts";
+// AI fighter worker, all chain access through gnomcp.
+//  1. ReadOpponentSource(pkgPath): gno_read the rival's PUBLIC strategy realm
+//     (everything on Gno.land is open source) and gno_eval its Weights().
+//  2. Pick a counter: beat the rival's most likely move.
+//  3. RunMatchTurn(matchID): commit hash(moves:salt) before the lock block,
+//     wait for the lock (gno_status), reveal. Signed through the approved
+//     gnomcp session — the worker never sees a private key.
+import { call, close, commitHash, env, evalExpr, height, newSalt, readSource, reason, render, sleep } from "./gno.ts";
 
 type Move = "S" | "G" | "F";
-const COUNTER: Record<Move, Move> = { S: "G", G: "F", F: "S" }; // what beats X
+const BEATS: Record<Move, Move> = { S: "G", G: "F", F: "S" }; // BEATS[x] = move that beats x
 
-export async function readOpponentSource(pkgPath: string) {
-  try {
-    return await readSource(pkgPath);
-  } catch {
-    return {} as Record<string, string>;
+export interface Read { pkgPath: string; source: string; weights: [number, number, number] }
+
+export async function readOpponentSource(pkgPath: string): Promise<Read> {
+  const source = await readSource(pkgPath);
+  let weights: [number, number, number] | null = null;
+  const ev = await evalExpr("Weights()", pkgPath).catch(() => "");
+  const nums = ev.match(/-?\d+/g)?.map(Number);
+  if (nums && nums.length >= 3) weights = [nums[0], nums[1], nums[2]];
+  if (!weights) {
+    const m = source.match(/func Weights\(\)[^{]*\{\s*return\s+(\d+),\s*(\d+),\s*(\d+)/);
+    weights = m ? [Number(m[1]), Number(m[2]), Number(m[3])] : [1, 1, 1];
   }
+  return { pkgPath, source, weights };
 }
 
-/** Count which moves the opponent's code favours and counter the most likely one per round. */
-export function chooseCounter(source: Record<string, string>): string {
-  const code = Object.values(source).join("\n");
-  const plan = code.match(/["'`]([SGF]{3})["'`]/)?.[1];
-  if (plan) return [...plan].map((m) => COUNTER[m as Move]).join(""); // they hard-coded a plan
-  const count = (re: RegExp) => (code.match(re) ?? []).length;
-  const fav: Move = [["S", count(/strike|"S"/gi)], ["G", count(/guard|"G"/gi)], ["F", count(/feint|"F"/gi)]]
-    .sort((a, b) => (b[1] as number) - (a[1] as number))[0][0] as Move;
-  // Counter their favourite twice, then hedge.
-  return COUNTER[fav] + COUNTER[fav] + COUNTER[COUNTER[fav]];
+/** Counter the rival's favourite move twice, its second favourite once. */
+export function chooseCounter([s, g, f]: [number, number, number]): string {
+  const ranked = (["S", "G", "F"] as Move[]).map((m, i) => ({ m, w: [s, g, f][i] })).sort((a, b) => b.w - a.w);
+  return BEATS[ranked[0].m] + BEATS[ranked[1].m] + BEATS[ranked[0].m];
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function chainHeight(): Promise<number> {
-  const res = await fetch(`${env.rpc.replace(/:443$/, "")}/status`);
-  const j = (await res.json()) as any;
-  return Number(j.result.sync_info.latest_block_height);
-}
-
-export async function runMatchTurn(matchId: number, opponentPkg: string) {
-  const src = await readOpponentSource(opponentPkg);
-  console.log(`📖 read ${Object.keys(src).length} file(s) of ${opponentPkg}`);
-  const moves = chooseCounter(src);
+export async function runMatchTurn(matchId: number, opponentPkg: string, log = console.log) {
+  const opp = await readOpponentSource(opponentPkg);
+  log(`📖 gno_read ${opponentPkg}: ${opp.source.length} bytes · Weights(S,G,F) = ${opp.weights.join(",")}`);
+  const moves = chooseCounter(opp.weights);
   const salt = newSalt();
-  console.log(`🧠 strategy ${moves} (salt kept locally)`);
+  log(`🧠 counter-strategy ${moves} (salt stays local until reveal)`);
 
-  console.log(await call({ key: env.fighterKey, func: "CommitMove", args: [matchId, commitHash(moves, salt)] }));
+  const c = await call({ func: "CommitMove", args: [matchId, commitHash(moves, salt)] });
+  log(c.ok ? "🔒 committed" : `❌ commit failed: ${reason(c)}`);
+  if (!c.ok) return;
 
-  // Wait for the commit deadline shown on the match page.
-  const page = await qrender(env.realm, `match/${matchId}`);
+  const page = await render(`match/${matchId}`);
   const deadline = Number(page.match(/COMMIT \+ BETS until #(\d+)/)?.[1] ?? 0);
-  while (deadline && (await chainHeight()) <= deadline) {
+  while (deadline && (await height()) <= deadline) {
     process.stdout.write(".");
-    await sleep(4000);
+    await sleep(5000);
   }
-  console.log("\n🔓 revealing");
-  console.log(await call({ key: env.fighterKey, func: "Reveal", args: [matchId, moves, salt] }));
-  console.log(`status: ${await qeval(env.realm, `MatchStatus(${matchId})`)}`);
+  for (let i = 0; i < 12; i++) {
+    const r = await call({ func: "Reveal", args: [matchId, moves, salt] });
+    if (r.ok) { log("\n🔓 revealed"); break; }
+    if (!/reveal opens after/.test(r.text)) { log(`\n❌ reveal failed: ${reason(r)}`); break; }
+    await sleep(5000);
+  }
+  log(`status: ${await evalExpr(`MatchStatus(${matchId})`)} · ${env.gnoweb}${env.realm.replace("gno.land", "")}:match/${matchId}`);
 }
 
-// CLI: tsx worker.ts <matchId> <opponentPkgPath>
+// CLI: npm run worker -- <matchId> <opponentPkgPath>
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [id, opp] = process.argv.slice(2);
   if (!id || !opp) {
-    console.error("usage: tsx worker.ts <matchId> <opponentPkgPath>");
+    console.error("usage: npm run worker -- <matchId> <opponentPkgPath>");
     process.exit(1);
   }
   await runMatchTurn(Number(id), opp);
+  await close();
 }

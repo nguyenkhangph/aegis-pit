@@ -1,47 +1,39 @@
-// PreflightCheck: before signing anything, ask the chain what would happen.
-//  - vm/qeval    → current box balance / trust (read-only)
-//  - simulate    → would the tx revert? (policy violations show up here)
-//  - vm/qstorage → storage bytes + deposit locked by the realm
-//  - vm/qrender  → what becomes public on gnoweb
-// The verdict is GREEN (safe to sign) or RED (do not sign).
-import { call, env, qeval, qrender, qstorage, simulate, type CallOpts } from "./gno.ts";
+// PreflightCheck(txPlan): before anything is signed, ask the chain what would happen.
+//  - gno_eval   → box balance right now
+//  - gno_call simulate=true → would it revert? gas, storage delta
+//  - gno_render → what is already public on Render("lab")
+// Verdict GREEN = safe to sign, RED = do not sign.
+import { call, close, env, evalExpr, reason, render, tool, type CallOpts } from "./gno.ts";
 
-export interface Preflight { verdict: "GREEN" | "RED"; reasons: string[]; summary: string }
+export interface Preflight { verdict: "GREEN" | "RED"; summary: string; details: string[] }
 
 export async function preflightCheck(plan: CallOpts): Promise<Preflight> {
-  const reasons: string[] = [];
-  let balance = "?";
-  try { balance = await qeval(env.realm, `BoxBalance(${env.boxId})`); } catch (e) { reasons.push(`qeval failed: ${(e as Error).message}`); }
+  const details: string[] = [];
+  const balance = await evalExpr(`BoxBalance(${env.boxId})`).catch((e) => `? (${(e as Error).message})`);
+  details.push(`box #${env.boxId} balance: ${balance}`);
 
-  const sim = await simulate(plan);
-  if (!sim.ok) {
-    const why = sim.out.match(/aegis: [^\n"]+/)?.[0] ?? sim.out.split("\n").slice(-1)[0];
-    reasons.push(`simulation reverts → ${why}`);
-  }
+  const sim = await call({ ...plan, simulate: true });
+  const storage = sim.text.match(/STORAGE DELTA:\s*([-\d]+ bytes)/)?.[1] ?? sim.text.match(/bytes_delta\D+(-?\d+)/)?.[1];
+  if (storage) details.push(`storage delta: ${storage}`);
+  if (!sim.ok) details.push(`simulation reverts → ${reason(sim)}`);
 
-  let storage = "?";
-  try { storage = await qstorage(env.realm); } catch { /* optional */ }
+  const lab = await render("lab").catch(() => "");
+  const target = String(plan.args?.[1] ?? "");
+  details.push(target && lab.includes(target) ? "target already flagged in Render(lab)" : "no prior flags in Render(lab)");
 
-  let exposes = "";
-  try {
-    const page = await qrender(env.realm, "lab");
-    exposes = page.includes(String(plan.args?.[1] ?? "")) ? "target address will be public in Render(lab)" : "no new public data";
-  } catch { /* optional */ }
-
-  const verdict = reasons.some((r) => r.startsWith("simulation reverts")) ? "RED" : "GREEN";
-  const summary = `${plan.func}(${(plan.args ?? []).join(", ")}) · box balance ${balance.trim()} · ${storage.trim()} · ${exposes} · ${verdict}${verdict === "RED" ? ": do not sign" : ""}`;
-  return { verdict, reasons, summary };
+  const verdict = sim.ok ? "GREEN" : "RED";
+  const summary = `${plan.func}(${(plan.args ?? []).join(", ")}) · ${details.join(" · ")} · ${verdict}${verdict === "RED" ? ": do not sign" : ""}`;
+  return { verdict, summary, details };
 }
 
 /** Publish the pre-flight summary to the Breaker Lab (Render("lab")). */
-export async function publishPreflight(p: Preflight) {
-  return call({ key: env.agentKey, func: "LogPreflight", args: [env.boxId, p.summary.slice(0, 280)] });
-}
+export const publishPreflight = (p: Preflight) => call({ func: "LogPreflight", args: [env.boxId, p.summary.slice(0, 280)] });
 
-// CLI: tsx preflight.ts <func> [args...]
+// CLI: npm run preflight -- <func> [args...]
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [func = "BoxSpend", ...args] = process.argv.slice(2);
-  const p = await preflightCheck({ key: env.agentKey, func, args });
-  console.log(`\n${p.verdict === "GREEN" ? "🟢" : "🔴"} ${p.summary}`);
-  for (const r of p.reasons) console.log("  -", r);
+  const p = await preflightCheck({ func, args });
+  console.log(`${p.verdict === "GREEN" ? "🟢" : "🔴"} ${p.summary}`);
+  await close();
+  void tool;
 }
