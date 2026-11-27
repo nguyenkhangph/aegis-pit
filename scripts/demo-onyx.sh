@@ -13,7 +13,7 @@ CHAIN="${GNO_CHAIN_ID:-onyx-1}"
 addr() { gnokey list | grep -E "\. $1 " | grep -oE 'g1[0-9a-z]{38}' | head -1; }
 A_ADDR=$(addr "$ALICE"); B_ADDR=$(addr "$BOB"); G_ADDR=$(addr "$AGENT")
 [ -n "$A_ADDR" ] && [ -n "$B_ADDR" ] && [ -n "$G_ADDR" ] || { echo "need gnokey keys: $ALICE $BOB $AGENT"; exit 1; }
-R="gno.land/r/$A_ADDR/aegis_pit"
+R="gno.land/r/$A_ADDR/aegis_pit/v2"
 
 # realm address = bech32("g", sha256("pkgPath:"+path)[:20])
 REALM_ADDR=$(python3 - "$R" <<'PY'
