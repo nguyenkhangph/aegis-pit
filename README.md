@@ -7,22 +7,25 @@ Submission for the **Gnome Tavern Hackathon** (track: dApp + Tool + Demo) · net
 | | |
 |---|---|
 | 🌐 Web demo (Vercel) | https://aegis-pit.vercel.app |
-| 🔗 Live realm (gnoweb) | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit |
+| 🔗 Live realm (gnoweb) | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2 |
 | 📦 Reusable package | [`gno.land/p/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_core`](https://onyx.testnets.gno.land/p/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_core) |
-| 🍺 Import proof | [`gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/sample_consumer`](https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/sample_consumer) |
+| 🍺 Import proof | [`gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/sample_consumer/v2`](https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/sample_consumer/v2) |
+| 🥊 Fighter strategies (public code AIs read) | [`r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/ironclad`](https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/ironclad) · [`r/g13pcya7jt4e7g94kcxhw7jf995l62merexwym2l/viper`](https://onyx.testnets.gno.land/r/g13pcya7jt4e7g94kcxhw7jf995l62merexwym2l/viper) |
 | 🎬 Demo video | _3–4 min link_ |
 
 ### Live on Onyx right now
 
 | Screen | Link |
 |---|---|
-| Arena lobby | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit |
-| Match #1 (resolved, 430 ugnot pool) | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit:match/1 |
-| Fighters, trust & badges | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit:fighters |
-| Breaker Lab (blocked injections) | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit:lab |
-| Emergency Exit | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit:exit |
+| Arena lobby | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2 |
+| Match #1 | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2:match/1 |
+| Fighters, trust & badges | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2:fighters |
+| Breaker Lab (blocked injections) | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2:lab |
+| Emergency Exit | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2:exit |
 
 Reproduce the whole on-chain demo with `./scripts/demo-onyx.sh` (keys `alice`, `bob`, `agent`).
+
+The first deployment (v1, sovereign-ledger backer shares) is kept as an archive with a resolved 430-ugnot match: https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit:match/1
 
 ---
 
@@ -55,9 +58,18 @@ Moves: 3 rounds of **S**trike / **G**uard / **F**eint (Strike › Feint › Guar
 2. **Bond & slash**: walking away from a losing reveal costs your whole bond, which goes to the opponent. Bettors are refunded. Forfeits also cost 150 trust.
 3. **Permissionless but fenced**: anyone can register a fighter. Friendly and ranked matches are separate, an owner can't fight themselves, and **an owner can never bet against their own fighter**.
 
-### Backer Tokens (GRC20-style)
+### Backer Tokens (real GRC20)
 
-Every fighter mints a fixed supply of `BACK<id>` tokens to its owner, which can be moved with `TransferBacker`. Holders receive **3% of every ranked pool their fighter wins** through a reward-per-share accumulator (O(1) per payout, no loops over holders). Rewards are settled on every transfer, so nothing is lost when tokens change hands.
+Every fighter mints its own **GRC20 token** with the official `gno.land/p/nt/grc20` library (`BACK1`, `BACK2`, …, 0 decimals), so mints and transfers emit the standard GRC20 events and any realm can read balances through the standard `grc20.Teller` interface:
+
+```go
+tok := aegis_pit.BackerToken(1)   // read-only grc20.Teller
+tok.GetSymbol(); tok.TotalSupply(); tok.BalanceOf(addr)
+```
+
+Holders receive **3% of every ranked pool their fighter wins** through a reward-per-share accumulator (O(1) per payout, no loop over holders). `TransferBacker` settles dividends for both sides before moving tokens on the GRC20 ledger, so nothing is lost when tokens change hands.
+
+Why the `*grc20.Token` itself is never handed out: any realm holding a `*Token` can move the BACK it owns with `RealmTeller`, which would skip dividend settlement and let it over-claim. Other realms get a read-only `Teller`; movement goes through `TransferBacker`.
 
 ### Trust that costs money
 
@@ -72,16 +84,18 @@ aegis-pit/
 │   ├── commit_reveal.gno    CommitHash, VerifyReveal, ResolveDuel
 │   ├── trust.gno            TrustRecord, TrustScore, SplitPool, ProRata
 │   └── aegis_core_test.gno
-├── r/aegis_pit/             the main realm
+├── r/aegis_pit/             the main realm (deployed as aegis_pit/v2)
 │   ├── state.gno            storage, pull-payment credits, Claim
 │   ├── box.gno              CreateBox, BoxSpend, GuardedSpend, BoxBet, LogPreflight, EmergencyWithdraw
-│   ├── arena.gno            fighters, Backer Tokens, matches, bets, commit/reveal, slash, trust
+│   ├── arena.gno            fighters, GRC20 Backer Tokens, matches, bets, commit/reveal, slash, trust
 │   ├── svg.gno              on-chain SVG duel board + badges (data-URI images)
 │   ├── render.gno           5 gnoweb routes
 │   └── arena_test.gno       full-flow, slash, friendly, box policy/exit, box bets, render
 ├── r/sample_consumer/       imports /p/aegis_core + reads aegis_pit.TrustScore
-├── agent/                   off-chain AI worker (TypeScript, no private keys)
-│   ├── gno.ts               RPC: vm/qrender, vm/qeval, vm/qfile, vm/qstorage; signing via gnokey
+├── strategies/              public fighter strategies AIs read: ironclad, viper
+├── agent/                   off-chain AI worker (TypeScript, gnomcp, no private keys)
+│   ├── gno.ts               MCP client for gnomcp: gno_read / gno_eval / gno_render / gno_status / gno_call
+│   ├── session.ts           asks gnomcp for a scoped session you approve with gnokey
 │   ├── preflight.ts         PreflightCheck → GREEN/RED before signing
 │   ├── worker.ts            ReadOpponentSource → counter-strategy → commit → reveal
 │   └── breaker_demo.ts      prompt-injection attack that the realm refuses
@@ -145,15 +159,29 @@ gnokey maketx call -pkgpath $R -func CreateMatch -args 1 -args true -send 1000ug
 gnokey maketx call -pkgpath $R -func CreateBox -args <agentAddr> -args <realmAddr> -args PlaceBet -args 20 -args 0 -send 100ugnot $NET alice
 ```
 
-### 4. AI agent
+### 4. AI agent (through gnomcp)
+
+The agent reaches Gno.land **only through [gnomcp](https://mcp.gno.dev)**, the MCP server for AI agents on gno.land:
+
+| Agent step | gnomcp tool |
+|---|---|
+| `ReadOpponentSource(pkgPath)`: read the rival's public strategy | `gno_read` (full source) + `gno_eval` (`Weights()`) |
+| `PreflightCheck(txPlan)`: what would this tx do? | `gno_eval` (box balance), `gno_call simulate=true` (revert, storage), `gno_render` (Lab) |
+| `RunMatchTurn(matchID)`: commit, wait for the lock block, reveal | `gno_call`, `gno_status` (block height) |
+| `BreakerDemo()`: prompt injection the realm refuses | `gno_call` (`GuardedSpend`, `BoxSpend`) |
+
+It never holds your private key. Writes go through a **gnomcp session** that you approve once with your own `gnokey`: scoped to the Aegis Pit realm only, capped by a spend limit, expiring after 72h, revocable any time.
 
 ```bash
-cd agent && npm i && cp .env.example .env    # set AEGIS_REALM, key names, BOX_ID
-npm run breaker                              # prompt-injection demo → RED preflight, logged, reverted
-npm run worker -- 1 gno.land/r/<opponent>/viper   # read opponent source, commit, wait, reveal
+go install github.com/gnoverse/gno-mcp/cmd/gnomcp@latest   # or the installer on mcp.gno.dev
+cd agent && npm i && cp .env.example .env                   # set AEGIS_REALM and MASTER_ADDRESS
+npm run session          # prints ONE gnokey command: run it to approve the session
+npm run breaker          # prompt injection → preflight RED, logged in the Lab, refused by the realm
+npm run worker -- 2 gno.land/r/<rival>/viper   # read rival code, commit, wait, reveal
+npm test                 # offline test against a fake gnomcp (same tool names)
 ```
 
-The agent never sees a private key: reads go through public RPC queries (`vm/qeval`, `vm/qrender`, `vm/qfile`, `vm/qstorage`), and transactions are signed by your local `gnokey` keybase (or a gnomcp session key with the same flags).
+Fighter strategies live in their own public realms (`strategies/ironclad`, `strategies/viper`): `Weights()` is the public move distribution, `Plan(seed)` turns a private seed into moves. Rival AIs read the code and counter it. Only the seed stays secret until the reveal, which is exactly what commit-reveal protects.
 
 ### 5. Web demo (Vercel)
 
@@ -164,6 +192,27 @@ cd web && npm i && npm run dev
 On Vercel, set **Root Directory = `web`** (preset Vite). Optional env vars: `VITE_REALM_PATH`, `VITE_REPO_URL`, `VITE_GNO_RPC`, `VITE_GNOWEB`.
 
 The web demo runs the **same rules** mirrored in TypeScript (`web/src/engine.ts`, parity-tested against the Gno tests), so judges can play the full 4-scene demo with no wallet. The **Live on Onyx** tab reads the deployed realm with `vm/qrender`.
+
+## Use Aegis Pit in your own project (3 steps)
+
+1. **Import the pure package** (no state, nothing to approve):
+   ```go
+   import core "gno.land/p/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_core"
+   ```
+2. **Use what you need:**
+   ```go
+   p, _ := core.NewPolicy(allowedCSV, "Tip,PlaceBet", 50, 0)   // spending rules for an AI agent
+   if err := core.ValidateSpend(p, target, fn, amt, runtime.ChainHeight()); err != nil { panic(err) }
+   h := core.CommitHash(moves, salt); core.VerifyReveal(h, moves, salt)  // commit-reveal
+   w, log := core.ResolveDuel("SGF", "FSG")                    // deterministic duel
+   ```
+3. **Read live reputation from the arena realm:**
+   ```go
+   import pit "gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2"
+   if pit.TrustScore(caller) < 520 { panic("win a ranked match first") }
+   ```
+
+[`r/sample_consumer/v2`](https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/sample_consumer/v2) does all three: a policy-checked tip jar, a practice duel and a VIP table gated by `TrustScore`.
 
 ## Demo script (3–4 min)
 
