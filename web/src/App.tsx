@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { ACTORS, MOVE_NAME, REALM, Sim, commitHash, splitPool, type Move } from "./engine";
-import { Badge, MatchCard, Shield, phaseOf } from "./Svg";
+import { Badge, MatchCard, phaseOf } from "./Svg";
 import { LiveTab } from "./Live";
 
 type Tab = "arena" | "match" | "fighters" | "lab" | "exit" | "live";
@@ -138,7 +138,7 @@ export default function App() {
   return (
     <div className="page">
       <header className="hero">
-        <div className="brand"><Shield size={46} /><div><h1>Aegis Pit</h1><p className="kicker">Gnome Tavern Hackathon · Gno.land · onyx-1</p></div></div>
+        <div className="brand"><img src="/logo.png" alt="Aegis Pit logo" className="logo" width={64} height={64} /><div><h1>Aegis Pit</h1><p className="kicker">Gnome Tavern Hackathon · Gno.land · onyx-1</p></div></div>
         <p className="lede">An <b>oracle-free prediction market</b> on deterministic AI duels, <b>policy-locked budget boxes</b> that prompt injection can't drain, and an <b>emergency exit</b> that lives in <code>Render()</code>.</p>
         <div className="cta">
           <button className="btn primary" onClick={runAll} disabled={busy}>{busy ? "Running…" : "▶ Run the 3-minute demo"}</button>

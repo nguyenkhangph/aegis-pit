@@ -124,3 +124,4 @@ footer { margin-top: 32px; color: var(--muted); font-size: 13px; border-top: 1px
   .pillars { grid-template-columns: 1fr; }
   .body { padding: 14px; }
 }
+.logo { width: 64px; height: 64px; border-radius: 14px; box-shadow: 0 0 24px #3fb6a855, 0 0 48px #2ecc7133; }
