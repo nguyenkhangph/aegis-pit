@@ -18,7 +18,7 @@ const envFile = new URL("./.env", import.meta.url);
 if (existsSync(envFile)) {
   for (const line of readFileSync(envFile, "utf8").split("\n")) {
     const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.*?)\s*$/);
-    if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/\s+#.*$/, "").replace(/^(["'])(.*)\1$/, "$2");
   }
 }
 
