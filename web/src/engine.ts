@@ -86,7 +86,7 @@ const fail = (m: string): never => { throw new AegisError("aegis: " + m); };
 
 export const ACTORS = ["alice", "bob", "carol", "agent", "hacker", "tavern"] as const;
 export type Actor = (typeof ACTORS)[number];
-export const REALM = "gno.land/r/aegispit/aegis_pit";
+export const REALM = "gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2";
 
 export class Sim {
   height = 1_204_330;

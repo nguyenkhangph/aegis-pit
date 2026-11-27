@@ -155,7 +155,7 @@ export default function App() {
 
       <main className="grid">
         <section className="screen">
-          <div className="addr"><span className="dot" />gnoweb · <code>{REALM.replace("gno.land", "")}{tab === "arena" ? "" : tab === "match" ? `:match/${matchId}` : tab === "live" ? "" : `:${tab}`}</code><span className="height">block #{sim.height.toLocaleString()}</span></div>
+          <div className="addr"><span className="dot" />gnoweb · <code>{REALM.replace("gno.land", "").replace(/g1[0-9a-z]{34}([0-9a-z]{4})/, (a, t) => a.slice(0, 6) + "…" + t)}{tab === "arena" ? "" : tab === "match" ? `:match/${matchId}` : tab === "live" ? "" : `:${tab}`}</code><span className="height">block #{sim.height.toLocaleString()}</span></div>
           <nav className="tabs">
             {(["arena", "match", "fighters", "lab", "exit", "live"] as Tab[]).map((t) => (
               <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{t === "live" ? "Live on Onyx" : t[0].toUpperCase() + t.slice(1)}{t === "lab" && sim.lab.length ? <i>{sim.lab.length}</i> : null}</button>
