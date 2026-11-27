@@ -38,7 +38,22 @@ print(h+"1"+"".join(C[x] for x in d+[(p>>5*(5-i))&31 for i in range(6)]))
 PY
 )
 
+status=$(gnokey query vm/qpkgmeta_json -data "$R" -remote "$RPC" 2>/dev/null | grep -oE '"status" *: *"[a-z]+"' | grep -oE '[a-z]+"$' | tr -d '"' || true)
+if [ "$status" != "live" ]; then
+  echo "Realm $R is '${status:-unknown}', not live yet (Onyx approver gpao has not enabled it)."
+  echo "Nothing was sent. Re-run when https://onyx.testnets.gno.land/${R#gno.land/} shows the arena."
+  exit 1
+fi
+
 read -rsp "gnokey passphrase (same for $ALICE/$BOB/$AGENT): " PW; echo
+# Dry-run a signature for each key (simulate only, nothing is broadcast)
+for k in "$ALICE" "$BOB" "$AGENT"; do
+  if echo "$PW" | gnokey maketx send -to "$A_ADDR" -send 1ugnot -gas-fee 200000ugnot -gas-wanted 2000000 \
+       -simulate only -broadcast -chainid "$CHAIN" -remote "$RPC" -insecure-password-stdin "$k" 2>&1 | grep -q "invalid account password"; then
+    echo "Wrong passphrase for key '$k'. Nothing was sent."; exit 1
+  fi
+done
+echo "Passphrase OK for $ALICE, $BOB, $AGENT."
 
 call() { # key func send args...
   local key=$1 fn=$2 send=$3; shift 3
@@ -83,9 +98,11 @@ call "$BOB"   CommitMove 0 1 "$(hash $B_MOVES "$B_SALT")"
 
 echo "== 4. Prompt injection: agent told to drain the box to $B_ADDR =="
 call "$AGENT" LogPreflight 0 1 "qeval: BoxSpend(${B_ADDR:0:10}…, 100) target NOT in allowlist; delta -100 ugnot. RED: do not sign."
-call "$AGENT" GuardedSpend 0 1 "$B_ADDR" "Tip" 100
+call "$AGENT" GuardedSpend 0 1 "$B_ADDR" "Tip" 10
 echo "→ $AGENT: BoxSpend to attacker (must revert)"
-if try "$AGENT" BoxSpend 1 "$B_ADDR" "Tip" 50; then echo "‼ unexpected success"; else echo "  reverted ✔ ($(grep -oE 'aegis: [^"]+' /tmp/aegis_try.log | head -1))"; fi
+if try "$AGENT" BoxSpend 1 "$B_ADDR" "Tip" 10; then echo "‼ unexpected success"
+elif grep -q "aegis:" /tmp/aegis_try.log; then echo "  refused by the realm ✔ ($(grep -oE 'aegis: [^"]+' /tmp/aegis_try.log | head -1))"
+else echo "  failed for another reason:"; tail -5 /tmp/aegis_try.log; fi
 
 echo "== 5. Wait for the lock block, then reveal =="
 until try "$ALICE" Reveal 1 "$A_MOVES" "$A_SALT"; do
