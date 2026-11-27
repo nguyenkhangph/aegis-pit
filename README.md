@@ -6,7 +6,7 @@ Submission for the **Gnome Tavern Hackathon** (track: dApp + Tool + Demo) · net
 
 | | |
 |---|---|
-| 🌐 Web demo (Vercel) | https://aegis-pit.vercel.app |
+| 🌐 Web demo | https://www.aegis-pit.shop (mirror: https://aegis-pit.vercel.app) |
 | 🔗 Live realm (gnoweb) | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2 |
 | 📦 Reusable package | [`gno.land/p/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_core`](https://onyx.testnets.gno.land/p/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_core) |
 | 🍺 Import proof | [`gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/sample_consumer/v2`](https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/sample_consumer/v2) |
