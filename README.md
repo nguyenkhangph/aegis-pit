@@ -7,10 +7,22 @@ Submission for the **Gnome Tavern Hackathon** (track: dApp + Tool + Demo) · net
 | | |
 |---|---|
 | 🌐 Web demo (Vercel) | https://aegis-pit.vercel.app |
-| 🔗 Live realm (gnoweb) | `https://onyx.testnets.gno.land/r/<your-g1-address>/aegis_pit` |
-| 📦 Reusable package | `gno.land/p/<your-g1-address>/aegis_core` |
-| 🍺 Import proof | `gno.land/r/<your-g1-address>/sample_consumer` |
+| 🔗 Live realm (gnoweb) | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit |
+| 📦 Reusable package | [`gno.land/p/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_core`](https://onyx.testnets.gno.land/p/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_core) |
+| 🍺 Import proof | [`gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/sample_consumer`](https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/sample_consumer) |
 | 🎬 Demo video | _3–4 min link_ |
+
+### Live on Onyx right now
+
+| Screen | Link |
+|---|---|
+| Arena lobby | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit |
+| Match #1 (resolved, 430 ugnot pool) | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit:match/1 |
+| Fighters, trust & badges | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit:fighters |
+| Breaker Lab (blocked injections) | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit:lab |
+| Emergency Exit | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit:exit |
+
+Reproduce the whole on-chain demo with `./scripts/demo-onyx.sh` (keys `alice`, `bob`, `agent`).
 
 ---
 
