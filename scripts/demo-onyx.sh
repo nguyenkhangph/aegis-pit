@@ -117,10 +117,10 @@ call "$BOB"   Claim 0 || true
 
 echo
 echo "Done. Open:"
-echo "  https://onyx.testnets.gno.land/r/$A_ADDR/aegis_pit"
-echo "  https://onyx.testnets.gno.land/r/$A_ADDR/aegis_pit:match/1"
-echo "  https://onyx.testnets.gno.land/r/$A_ADDR/aegis_pit:fighters"
-echo "  https://onyx.testnets.gno.land/r/$A_ADDR/aegis_pit:lab"
-echo "  https://onyx.testnets.gno.land/r/$A_ADDR/aegis_pit:exit"
+echo "  https://onyx.testnets.gno.land/r/$A_ADDR/aegis_pit/v2"
+echo "  https://onyx.testnets.gno.land/r/$A_ADDR/aegis_pit/v2:match/1"
+echo "  https://onyx.testnets.gno.land/r/$A_ADDR/aegis_pit/v2:fighters"
+echo "  https://onyx.testnets.gno.land/r/$A_ADDR/aegis_pit/v2:lab"
+echo "  https://onyx.testnets.gno.land/r/$A_ADDR/aegis_pit/v2:exit"
 echo "Box #1 stays open for the video; close it with:"
 echo "  gnokey maketx call -pkgpath $R -func EmergencyWithdraw -args 1 -gas-fee 200000ugnot -gas-wanted 20000000 -broadcast -chainid $CHAIN -remote $RPC $ALICE"
