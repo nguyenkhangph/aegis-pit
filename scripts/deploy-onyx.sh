@@ -18,7 +18,11 @@ TMP="$(mktemp -d)"; cp -r "$ROOT/p" "$ROOT/r" "$ROOT/strategies" "$TMP/"
 grep -rl 'aegispit' "$TMP" | xargs sed -i "s#gno.land/p/aegispit/#gno.land/p/$ADDR/#g; s#gno.land/r/aegispit/#gno.land/r/$ADDR/#g"
 [ -n "$RADDR" ] && sed -i "s#gno.land/r/$ADDR/viper#gno.land/r/$RADDR/viper#" "$TMP/strategies/viper/gnomod.toml"
 
-exists() { gnokey query vm/qpkgmeta_json -data "$1" -remote "$REMOTE" 2>/dev/null | grep -q '"status"'; }
+# vm/qpkgmeta_json answers {"status":"live"|"inert"|"absent"}
+exists() {
+  local out; out=$(gnokey query vm/qpkgmeta_json -data "$1" -remote "$REMOTE" 2>/dev/null || true)
+  echo "$out" | grep -qE '"status" *: *"(live|inert)"'
+}
 deploy() { # dir pkgpath key
   if exists "$2"; then echo "✓ $2 already on chain, skipping"; return; fi
   echo "→ addpkg $2 (as $3)"
