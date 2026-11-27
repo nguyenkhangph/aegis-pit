@@ -18,7 +18,7 @@ var (
 	agentK  = testutils.TestAddress("agent")  // AI agent key
 	hacker  = testutils.TestAddress("hacker") // injected recipient
 	tavern  = testutils.TestAddress("tavern") // allowed recipient
-	pkgAddr = chain.PackageAddress("gno.land/r/aegispit/aegis_pit")
+	pkgAddr = chain.PackageAddress("gno.land/r/aegispit/aegis_pit/v2")
 )
 
 func setupFighters(cur realm) (int, int) {
@@ -120,12 +120,21 @@ func TestRankedMatchFullFlow(cur realm, t *testing.T) {
 	// trust only from ranked money
 	uassert.True(t, TrustScore(alice) > TrustScore(bob))
 
+	// Backer Tokens are a real GRC20, readable through the standard Teller
+	tok := BackerToken(fa)
+	uassert.Equal(t, "BACK1", tok.GetSymbol())
+	uassert.Equal(t, "Ironclad Backer", tok.GetName())
+	uassert.Equal(t, int64(1000), tok.TotalSupply())
+	uassert.Equal(t, int64(1000), tok.BalanceOf(alice))
+	uassert.True(t, strings.Contains(BackerTokenID(fa), ".BACK1."))
+
 	// backer token transfer settles dividends first
 	testing.SetRealm(testing.NewUserRealm(alice))
 	TransferBacker(cross(cur), fa, carol, 500)
 	uassert.Equal(t, int64(1030), CreditOf(alice))
 	uassert.Equal(t, int64(500), BackerBalance(fa, carol))
 	uassert.Equal(t, int64(0), BackerPending(fa, carol))
+	uassert.Equal(t, int64(500), BackerToken(fa).BalanceOf(carol)) // moved on the GRC20 ledger
 
 	// claim pays out
 	testing.SetRealm(testing.NewUserRealm(carol))

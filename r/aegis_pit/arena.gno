@@ -5,31 +5,34 @@ import (
 
 	core "gno.land/p/aegispit/aegis_core"
 	"gno.land/p/nt/avl/v0"
+	"gno.land/p/nt/grc20/v0"
+	"gno.land/p/nt/seqid/v0"
 )
 
 // ======================= Fighters & Backer Tokens =======================
 
 const shareScale int64 = 1_000_000
 
-// BackerLedger is a GRC20-style fungible ledger of "Backer Tokens" for one
-// fighter. Holders earn 3% of every ranked pool their fighter wins, using a
+// BackerLedger wraps a real GRC20 token (gno.land/p/nt/grc20) minted per
+// fighter. Holders earn 3% of every ranked pool their fighter wins through a
 // reward-per-share accumulator (O(1) per payout, no loops over holders).
+//
+// The token's *Token / *PrivateLedger stay private to this realm: other realms
+// read it through BackerToken(id), a standard read-only grc20.Teller, and
+// holders move it with TransferBacker, which settles dividends first. Exposing
+// the raw *Token would let any realm holding BACK tokens move them with
+// RealmTeller and skip settlement, so it is deliberately never handed out.
 type BackerLedger struct {
 	Symbol      string
 	Supply      int64
-	balances    *avl.Tree // addr -> int64
+	token       *grc20.Token
+	ledger      *grc20.PrivateLedger
 	debt        *avl.Tree // addr -> int64 (already-accounted rewards)
 	accPerShare int64     // scaled by shareScale
 	Distributed int64
 }
 
-func (l *BackerLedger) BalanceOf(a address) int64 {
-	v := l.balances.Get(string(a))
-	if v == nil {
-		return 0
-	}
-	return v.(int64)
-}
+func (l *BackerLedger) BalanceOf(a address) int64 { return l.token.BalanceOf(a) }
 
 func (l *BackerLedger) debtOf(a address) int64 {
 	v := l.debt.Get(string(a))
@@ -66,8 +69,9 @@ func (l *BackerLedger) transfer(from, to address, amt int64) {
 	}
 	l.settle(from)
 	l.settle(to)
-	l.balances.Set(string(from), l.BalanceOf(from)-amt)
-	l.balances.Set(string(to), l.BalanceOf(to)+amt)
+	if err := l.ledger.Transfer(from, to, amt); err != nil {
+		panic("aegis: " + err.Error())
+	}
 	l.debt.Set(string(from), l.BalanceOf(from)*l.accPerShare/shareScale)
 	l.debt.Set(string(to), l.BalanceOf(to)*l.accPerShare/shareScale)
 }
@@ -108,13 +112,12 @@ func RegisterFighter(cur realm, name, pkgPath string, backerSupply int64) int {
 	}
 	owner := caller(cur)
 	nFighters++
-	l := &BackerLedger{
-		Symbol:   "BACK" + strconv.Itoa(nFighters),
-		Supply:   backerSupply,
-		balances: avl.NewTree(),
-		debt:     avl.NewTree(),
+	symbol := "BACK" + strconv.Itoa(nFighters)
+	tok, led := grc20.NewToken(name+" Backer", symbol, 0, seqid.ID(nFighters), cur)
+	if err := led.Mint(owner, backerSupply); err != nil {
+		panic("aegis: " + err.Error())
 	}
-	l.balances.Set(string(owner), backerSupply)
+	l := &BackerLedger{Symbol: symbol, Supply: backerSupply, token: tok, ledger: led, debt: avl.NewTree()}
 	f := &Fighter{ID: nFighters, Name: name, PkgPath: pkgPath, Owner: owner, Backers: l}
 	fighters.Set(key(f.ID), f)
 	return f.ID
@@ -141,6 +144,14 @@ func TransferBacker(cur realm, fighterID int, to address, amount int64) {
 func ClaimBackerRewards(cur realm, fighterID int) {
 	getFighter(fighterID).Backers.settle(caller(cur))
 }
+
+// BackerToken returns the fighter's GRC20 Backer Token as a standard,
+// read-only grc20.Teller (name, symbol, supply, balances).
+func BackerToken(fighterID int) grc20.Teller {
+	return getFighter(fighterID).Backers.token.ReadonlyTeller()
+}
+
+func BackerTokenID(fighterID int) string { return getFighter(fighterID).Backers.token.ID() }
 
 func BackerBalance(fighterID int, a address) int64 { return getFighter(fighterID).Backers.BalanceOf(a) }
 func BackerPending(fighterID int, a address) int64 { return getFighter(fighterID).Backers.Pending(a) }
