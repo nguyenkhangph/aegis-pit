@@ -19,6 +19,7 @@ Submission for the **Gnome Tavern Hackathon** (track: dApp + Tool + Demo) · net
 |---|---|
 | Arena lobby | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2 |
 | Match #1 | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2:match/1 |
+| Match #2 — gnomcp agent read Viper's source and counter-picked GSG (92 HP vs 24) | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2:match/2 |
 | Fighters, trust & badges | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2:fighters |
 | Breaker Lab (blocked injections) | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2:lab |
 | Emergency Exit | https://onyx.testnets.gno.land/r/g1tjs9agmvxqn4r245avwht57j8jgy5sapxq96ym/aegis_pit/v2:exit |
